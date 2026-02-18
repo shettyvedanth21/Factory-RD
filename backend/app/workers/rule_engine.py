@@ -319,6 +319,16 @@ def evaluate_rules_task(self, factory_id: int, device_id: int,
                         channels=rule["notification_channels"],
                     )
                     
+                    # Increment Prometheus counter
+                    try:
+                        from app.api.v1.metrics import alerts_triggered_total
+                        alerts_triggered_total.labels(
+                            factory_id=str(factory_id),
+                            severity=rule["severity"]
+                        ).inc()
+                    except Exception:
+                        pass  # Don't fail task if metrics fail
+                    
                     logger.info(
                         "alert.triggered",
                         factory_id=factory_id,

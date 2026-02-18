@@ -144,18 +144,43 @@ Telemetry Snapshot:
             
             server.send_message(msg)
         
+        # Mask email for privacy
+        masked_email = to_email[:3] + "***" + to_email[to_email.index("@"):]
+        
+        # Increment Prometheus counter
+        try:
+            from app.api.v1.metrics import notifications_sent_total
+            notifications_sent_total.labels(channel="email", status="success").inc()
+        except Exception:
+            pass
+        
         logger.info(
             "notification.email_sent",
             alert_id=alert["id"],
-            to_email=to_email,
-            factory_id=alert["factory_id"]
+            to_email=masked_email,
+            factory_id=alert["factory_id"],
+            channel="email",
+            success=True
         )
     
     except Exception as e:
+        # Mask email for privacy
+        masked_email = to_email[:3] + "***" + to_email[to_email.index("@"):] if "@" in to_email else to_email
+        
+        # Increment Prometheus counter
+        try:
+            from app.api.v1.metrics import notifications_sent_total
+            notifications_sent_total.labels(channel="email", status="failure").inc()
+        except Exception:
+            pass
+        
         logger.error(
             "notification.email_failed",
             alert_id=alert["id"],
-            to_email=to_email,
+            to_email=masked_email,
+            factory_id=alert["factory_id"],
+            channel="email",
+            success=False,
             error=str(e)
         )
 
@@ -197,19 +222,44 @@ def send_whatsapp(to_number: str, alert: dict) -> None:
             body=message_body
         )
         
+        # Mask phone number for privacy
+        masked_number = to_number[:4] + "***" + to_number[-3:] if len(to_number) > 7 else to_number
+        
+        # Increment Prometheus counter
+        try:
+            from app.api.v1.metrics import notifications_sent_total
+            notifications_sent_total.labels(channel="whatsapp", status="success").inc()
+        except Exception:
+            pass
+        
         logger.info(
             "notification.whatsapp_sent",
             alert_id=alert["id"],
-            to_number=to_number,
+            to_number=masked_number,
             message_sid=message.sid,
-            factory_id=alert["factory_id"]
+            factory_id=alert["factory_id"],
+            channel="whatsapp",
+            success=True
         )
     
     except Exception as e:
+        # Mask phone number for privacy
+        masked_number = to_number[:4] + "***" + to_number[-3:] if len(to_number) > 7 else to_number
+        
+        # Increment Prometheus counter
+        try:
+            from app.api.v1.metrics import notifications_sent_total
+            notifications_sent_total.labels(channel="whatsapp", status="failure").inc()
+        except Exception:
+            pass
+        
         logger.error(
             "notification.whatsapp_failed",
             alert_id=alert["id"],
-            to_number=to_number,
+            to_number=masked_number,
+            factory_id=alert["factory_id"],
+            channel="whatsapp",
+            success=False,
             error=str(e)
         )
 
@@ -227,6 +277,9 @@ def send_notifications_task(self, alert_id: int, channels: dict):
         alert_id: Alert ID
         channels: Dictionary of channels {"email": bool, "whatsapp": bool}
     """
+    import time
+    start_time = time.time()
+    
     try:
         # Get alert details
         alert = get_alert_with_relations_sync(alert_id)
@@ -274,16 +327,24 @@ def send_notifications_task(self, alert_id: int, channels: dict):
         # Mark as sent
         mark_notification_sent_sync(alert_id)
         
+        duration_ms = (time.time() - start_time) * 1000
+        
         logger.info(
             "notification.completed",
             alert_id=alert_id,
-            factory_id=alert["factory_id"]
+            factory_id=alert["factory_id"],
+            duration_ms=round(duration_ms, 2),
+            user_count=len(users),
+            channels=list(channels.keys())
         )
     
     except Exception as e:
+        duration_ms = (time.time() - start_time) * 1000
+        
         logger.error(
             "notification.task_failed",
             alert_id=alert_id,
+            duration_ms=round(duration_ms, 2),
             error=str(e),
             exc_info=True
         )

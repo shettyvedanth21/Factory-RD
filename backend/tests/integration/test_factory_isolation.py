@@ -17,32 +17,27 @@ from app.core.security import create_access_token, hash_password
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
 
-@pytest.fixture
-async def test_engine():
-    """Create a test database engine."""
+@pytest.fixture(scope="function")
+async def db_session():
+    """Create a test database session."""
+    # Create engine
     engine = create_async_engine(TEST_DATABASE_URL, echo=False)
     
     # Create all tables
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     
-    yield engine
+    # Create session
+    async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    
+    async with async_session() as session:
+        yield session
     
     # Cleanup
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
     
     await engine.dispose()
-
-
-@pytest.fixture(scope="function")
-async def db_session(test_engine):
-    """Create a test database session."""
-    async_session = async_sessionmaker(test_engine, class_=AsyncSession, expire_on_commit=False)
-    
-    async with async_session() as session:
-        yield session
-        await session.rollback()
 
 
 async def create_test_data(db_session):

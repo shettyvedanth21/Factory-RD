@@ -309,6 +309,9 @@ def run_analytics_job(self, job_id: str):
     Args:
         job_id: Analytics job ID
     """
+    import time
+    start_time = time.time()
+    
     logger.info("analytics_job.start", job_id=job_id)
     
     # Update status to running
@@ -370,18 +373,26 @@ def run_analytics_job(self, job_id: str):
         # Update job status
         update_job_status_sync(job_id, "complete", result_url=result_url)
         
+        duration_ms = (time.time() - start_time) * 1000
+        
         logger.info(
             "analytics_job.success",
             job_id=job_id,
+            factory_id=job.factory_id,
+            job_type=job.job_type.value,
+            duration_ms=round(duration_ms, 2),
             result_url=result_url,
         )
         
         return {"status": "complete", "result_url": result_url}
         
     except Exception as e:
+        duration_ms = (time.time() - start_time) * 1000
+        
         logger.error(
             "analytics_job.failed",
             job_id=job_id,
+            duration_ms=round(duration_ms, 2),
             error=str(e),
             exc_info=True,
         )

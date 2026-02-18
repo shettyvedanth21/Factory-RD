@@ -154,6 +154,13 @@ async def process_telemetry(
             )
             # Don't fail the pipeline for this
         
+        # Increment Prometheus counter
+        try:
+            from app.api.v1.metrics import telemetry_messages_total
+            telemetry_messages_total.labels(factory_id=str(factory.id)).inc()
+        except Exception:
+            pass  # Don't fail pipeline if metrics fail
+        
         logger.info(
             "telemetry.processed",
             factory_id=factory.id,
