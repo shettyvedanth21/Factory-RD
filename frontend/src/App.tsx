@@ -9,6 +9,8 @@ import MachinesPage from './pages/Machines';
 import DeviceDetailPage from './pages/DeviceDetail';
 import RulesPage from './pages/Rules';
 import RuleBuilderPage from './pages/RuleBuilder';
+import AnalyticsPage from './pages/Analytics';
+import ReportsPage from './pages/Reports';
 import MainLayout from './components/ui/MainLayout';
 
 // Create QueryClient
@@ -82,8 +84,9 @@ function App() {
             <Route path="rules" element={<RulesPage />} />
             <Route path="rules/new" element={<RuleBuilderPage />} />
             <Route path="rules/:ruleId" element={<RuleBuilderPage />} />
-            <Route path="analytics" element={<div className="p-6">Analytics Page</div>} />
-            <Route path="reports" element={<div className="p-6">Reports Page</div>} />
+            {/* Analytics and Reports routes */}
+            <Route path="analytics" element={<AnalyticsPage />} />
+            <Route path="reports" element={<ReportsPage />} />
             
             {/* Super admin only */}
             <Route

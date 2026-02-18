@@ -91,7 +91,7 @@ app.add_middleware(
 
 
 # Include routers
-from app.api.v1 import devices, telemetry, dashboard, rules, alerts, analytics
+from app.api.v1 import devices, telemetry, dashboard, rules, alerts, analytics, reports
 
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(devices.router, prefix="/api/v1")
@@ -100,6 +100,7 @@ app.include_router(rules.router, prefix="/api/v1")
 app.include_router(alerts.router, prefix="/api/v1")
 app.include_router(dashboard.router, prefix="/api/v1")
 app.include_router(analytics.router, prefix="/api/v1")
+app.include_router(reports.router, prefix="/api/v1")
 
 
 @app.get("/health")
