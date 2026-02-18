@@ -5,6 +5,8 @@ import { useAuthStore } from './stores/authStore';
 import FactorySelectPage from './pages/FactorySelect';
 import LoginPage from './pages/Login';
 import DashboardPage from './pages/Dashboard';
+import MachinesPage from './pages/Machines';
+import DeviceDetailPage from './pages/DeviceDetail';
 import MainLayout from './components/ui/MainLayout';
 
 // Create QueryClient
@@ -71,9 +73,9 @@ function App() {
             }
           >
             <Route path="dashboard" element={<DashboardPage />} />
-            {/* Placeholder routes - will be implemented in later phases */}
-            <Route path="machines" element={<div className="p-6">Machines Page</div>} />
-            <Route path="machines/:deviceId" element={<div className="p-6">Device Detail Page</div>} />
+            {/* Machines routes */}
+            <Route path="machines" element={<MachinesPage />} />
+            <Route path="machines/:deviceId" element={<DeviceDetailPage />} />
             <Route path="rules" element={<div className="p-6">Rules Page</div>} />
             <Route path="rules/new" element={<div className="p-6">Rule Builder Page</div>} />
             <Route path="rules/:ruleId" element={<div className="p-6">Rule Builder Page</div>} />
