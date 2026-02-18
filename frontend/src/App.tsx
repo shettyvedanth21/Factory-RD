@@ -7,6 +7,8 @@ import LoginPage from './pages/Login';
 import DashboardPage from './pages/Dashboard';
 import MachinesPage from './pages/Machines';
 import DeviceDetailPage from './pages/DeviceDetail';
+import RulesPage from './pages/Rules';
+import RuleBuilderPage from './pages/RuleBuilder';
 import MainLayout from './components/ui/MainLayout';
 
 // Create QueryClient
@@ -76,9 +78,10 @@ function App() {
             {/* Machines routes */}
             <Route path="machines" element={<MachinesPage />} />
             <Route path="machines/:deviceId" element={<DeviceDetailPage />} />
-            <Route path="rules" element={<div className="p-6">Rules Page</div>} />
-            <Route path="rules/new" element={<div className="p-6">Rule Builder Page</div>} />
-            <Route path="rules/:ruleId" element={<div className="p-6">Rule Builder Page</div>} />
+            {/* Rules routes */}
+            <Route path="rules" element={<RulesPage />} />
+            <Route path="rules/new" element={<RuleBuilderPage />} />
+            <Route path="rules/:ruleId" element={<RuleBuilderPage />} />
             <Route path="analytics" element={<div className="p-6">Analytics Page</div>} />
             <Route path="reports" element={<div className="p-6">Reports Page</div>} />
             
