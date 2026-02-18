@@ -1,0 +1,9 @@
+aiomqtt==2.0.0
+influxdb-client[async]==1.43.0
+aiomysql==0.2.0
+sqlalchemy[asyncio]==2.0.30
+structlog==24.1.0
+pydantic==2.7.1
+pydantic-settings==2.2.1
+redis[hiredis]==5.0.4
+celery[redis]==5.4.0
