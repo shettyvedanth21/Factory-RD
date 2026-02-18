@@ -11,7 +11,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "backend"))
 
 from app.models import Factory, Device
-from telemetry.logging_config import get_logger
+
+try:
+    from logging_config import get_logger
+except ImportError:
+    from telemetry.logging_config import get_logger
 
 logger = get_logger(__name__)
 
