@@ -462,12 +462,6 @@ MIT License - see LICENSE file for details
 
 ---
 
-## Support
-
-- **Documentation**: See `docs/` directory
-- **Issues**: GitHub Issues
-- **Security**: Report vulnerabilities to security@factoryops.io
 
 ---
 
-**Built with ❤️ for industrial IoT and predictive maintenance.**
