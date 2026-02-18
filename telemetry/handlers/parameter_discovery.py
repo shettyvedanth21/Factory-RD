@@ -68,28 +68,44 @@ async def discover_parameters(
         )
         exists = result.scalar_one_or_none() is not None
         
-        # Upsert query
-        upsert_query = text("""
-            INSERT INTO device_parameters 
-                (factory_id, device_id, parameter_key, data_type, is_kpi_selected, discovered_at, updated_at)
-            VALUES 
-                (:factory_id, :device_id, :parameter_key, :data_type, :is_kpi_selected, :discovered_at, :updated_at)
-            ON DUPLICATE KEY UPDATE
-                updated_at = :updated_at
-        """)
-        
-        await db.execute(
-            upsert_query,
-            {
-                "factory_id": factory_id,
-                "device_id": device_id,
-                "parameter_key": key,
-                "data_type": data_type,
-                "is_kpi_selected": True,
-                "discovered_at": now,
-                "updated_at": now
-            }
-        )
+        # Use database-agnostic upsert
+        if not exists:
+            # Insert new parameter
+            insert_query = text("""
+                INSERT INTO device_parameters 
+                    (factory_id, device_id, parameter_key, data_type, is_kpi_selected, discovered_at, updated_at)
+                VALUES 
+                    (:factory_id, :device_id, :parameter_key, :data_type, :is_kpi_selected, :discovered_at, :updated_at)
+            """)
+            
+            await db.execute(
+                insert_query,
+                {
+                    "factory_id": factory_id,
+                    "device_id": device_id,
+                    "parameter_key": key,
+                    "data_type": data_type,
+                    "is_kpi_selected": True,
+                    "discovered_at": now,
+                    "updated_at": now
+                }
+            )
+        else:
+            # Update existing parameter timestamp
+            update_query = text("""
+                UPDATE device_parameters 
+                SET updated_at = :updated_at
+                WHERE device_id = :device_id AND parameter_key = :parameter_key
+            """)
+            
+            await db.execute(
+                update_query,
+                {
+                    "device_id": device_id,
+                    "parameter_key": key,
+                    "updated_at": now
+                }
+            )
         
         # Mark as newly discovered if it didn't exist before
         is_new = not exists
