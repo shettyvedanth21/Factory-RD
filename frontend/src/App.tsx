@@ -1,26 +1,99 @@
-import { useState } from 'react'
+import { useEffect } from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { useAuthStore } from './stores/authStore';
+import FactorySelectPage from './pages/FactorySelect';
+import LoginPage from './pages/Login';
+import DashboardPage from './pages/Dashboard';
+import MainLayout from './components/ui/MainLayout';
+
+// Create QueryClient
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
+
+// Protected Route Component
+const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return <>{children}</>;
+};
+
+// Super Admin Route Component
+const SuperAdminRoute = ({ children }: { children: React.ReactNode }) => {
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const user = useAuthStore((state) => state.user);
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (user?.role !== 'super_admin') {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return <>{children}</>;
+};
 
 function App() {
-  const [count, setCount] = useState(0)
+  const initAuth = useAuthStore((state) => state.initAuth);
+
+  // Initialize auth from sessionStorage on mount
+  useEffect(() => {
+    initAuth();
+  }, [initAuth]);
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold text-gray-900 mb-4">
-          FactoryOps - IIoT Analytics Platform
-        </h1>
-        <p className="text-gray-600 mb-8">
-          Multi-tenant factory operations and analytics platform
-        </p>
-        <button
-          onClick={() => setCount((count) => count + 1)}
-          className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          Count is {count}
-        </button>
-      </div>
-    </div>
-  )
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <Routes>
+          {/* Public routes */}
+          <Route path="/" element={<Navigate to="/factory-select" replace />} />
+          <Route path="/factory-select" element={<FactorySelectPage />} />
+          <Route path="/login" element={<LoginPage />} />
+
+          {/* Protected routes with layout */}
+          <Route
+            path="/"
+            element={
+              <ProtectedRoute>
+                <MainLayout />
+              </ProtectedRoute>
+            }
+          >
+            <Route path="dashboard" element={<DashboardPage />} />
+            {/* Placeholder routes - will be implemented in later phases */}
+            <Route path="machines" element={<div className="p-6">Machines Page</div>} />
+            <Route path="machines/:deviceId" element={<div className="p-6">Device Detail Page</div>} />
+            <Route path="rules" element={<div className="p-6">Rules Page</div>} />
+            <Route path="rules/new" element={<div className="p-6">Rule Builder Page</div>} />
+            <Route path="rules/:ruleId" element={<div className="p-6">Rule Builder Page</div>} />
+            <Route path="analytics" element={<div className="p-6">Analytics Page</div>} />
+            <Route path="reports" element={<div className="p-6">Reports Page</div>} />
+            
+            {/* Super admin only */}
+            <Route
+              path="users"
+              element={
+                <SuperAdminRoute>
+                  <div className="p-6">Users Page</div>
+                </SuperAdminRoute>
+              }
+            />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </QueryClientProvider>
+  );
 }
 
-export default App
+export default App;
