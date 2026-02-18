@@ -12,6 +12,7 @@ from app.core.middleware import RequestIDMiddleware
 from app.core.database import check_db_health
 from app.core.redis_client import check_redis_health, close_redis
 from app.core.influx import check_influx_health, close_influx
+from app.core.minio_client import ensure_bucket_exists, check_minio_health
 from app.api.v1 import auth
 
 
@@ -41,14 +42,20 @@ async def lifespan(app: FastAPI):
     if not influx_ok:
         logger.warning("startup_warning", reason="InfluxDB connection failed")
     
-    # Check MinIO bucket (optional for now, will implement in Phase 4)
-    # TODO: Ensure MinIO bucket exists
+    # Ensure MinIO bucket exists
+    try:
+        await ensure_bucket_exists()
+        minio_ok = True
+    except Exception as e:
+        logger.warning("startup_warning", reason=f"MinIO bucket creation failed: {str(e)}")
+        minio_ok = False
     
     logger.info(
         "api_started",
         database=db_ok,
         redis=redis_ok,
         influxdb=influx_ok,
+        minio=minio_ok,
         app_env=settings.app_env,
         jwt_expiry_hours=settings.jwt_expiry_hours
     )
@@ -84,7 +91,7 @@ app.add_middleware(
 
 
 # Include routers
-from app.api.v1 import devices, telemetry, dashboard, rules, alerts
+from app.api.v1 import devices, telemetry, dashboard, rules, alerts, analytics
 
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(devices.router, prefix="/api/v1")
@@ -92,6 +99,7 @@ app.include_router(telemetry.router, prefix="/api/v1")
 app.include_router(rules.router, prefix="/api/v1")
 app.include_router(alerts.router, prefix="/api/v1")
 app.include_router(dashboard.router, prefix="/api/v1")
+app.include_router(analytics.router, prefix="/api/v1")
 
 
 @app.get("/health")
@@ -106,6 +114,7 @@ async def health_check():
     db_healthy = await check_db_health()
     redis_healthy = await check_redis_health()
     influx_healthy = await check_influx_health()
+    minio_healthy = check_minio_health()
     
     overall_status = "healthy" if db_healthy else "unhealthy"
     
@@ -114,7 +123,8 @@ async def health_check():
         "dependencies": {
             "mysql": "ok" if db_healthy else "error",
             "redis": "ok" if redis_healthy else "error",
-            "influxdb": "ok" if influx_healthy else "error"
+            "influxdb": "ok" if influx_healthy else "error",
+            "minio": "ok" if minio_healthy else "error"
         }
     }
 
