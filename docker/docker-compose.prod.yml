@@ -1,0 +1,444 @@
+version: '3.8'
+
+# Production Docker Compose configuration
+# - Uses baked images (no volume mounts)
+# - Secrets from Docker secrets (not .env)
+# - Resource limits enforced
+# - TLS termination at nginx
+# - Health checks enabled
+# - Restart policies set
+
+services:
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: factoryops-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./nginx/logs:/var/log/nginx
+    depends_on:
+      - api
+      - frontend
+    restart: always
+    networks:
+      - factoryops-net
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+
+  api:
+    image: ghcr.io/${GITHUB_REPOSITORY}/api:${IMAGE_TAG:-latest}
+    container_name: factoryops-api
+    secrets:
+      - mysql_password
+      - jwt_secret
+      - influxdb_token
+      - minio_secret_key
+    environment:
+      - ENVIRONMENT=production
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_USER=factoryops
+      - MYSQL_DATABASE=factoryops
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - INFLUXDB_URL=http://influxdb:8086
+      - INFLUXDB_ORG=factoryops
+      - INFLUXDB_BUCKET=factoryops
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_BUCKET=factoryops
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USER=factoryops
+      - JWT_ALGORITHM=HS256
+      - APP_URL=${APP_URL}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      influxdb:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: always
+    networks:
+      - factoryops-net
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '1.0'
+          memory: 1G
+      replicas: 2
+
+  telemetry:
+    image: ghcr.io/${GITHUB_REPOSITORY}/telemetry:${IMAGE_TAG:-latest}
+    container_name: factoryops-telemetry
+    secrets:
+      - mysql_password
+      - influxdb_token
+    environment:
+      - ENVIRONMENT=production
+      - MQTT_BROKER_HOST=mqtt
+      - MQTT_BROKER_PORT=1883
+      - MQTT_USERNAME=factoryops
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_USER=factoryops
+      - MYSQL_DATABASE=factoryops
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - INFLUXDB_URL=http://influxdb:8086
+      - INFLUXDB_ORG=factoryops
+      - INFLUXDB_BUCKET=factoryops
+    depends_on:
+      mqtt:
+        condition: service_started
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      influxdb:
+        condition: service_healthy
+    restart: always
+    networks:
+      - factoryops-net
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  worker:
+    image: ghcr.io/${GITHUB_REPOSITORY}/api:${IMAGE_TAG:-latest}
+    container_name: factoryops-worker
+    command: celery -A app.workers.celery_app worker -Q rule_engine,analytics,reporting,notifications --loglevel=info --concurrency=4
+    secrets:
+      - mysql_password
+      - jwt_secret
+      - influxdb_token
+      - minio_secret_key
+    environment:
+      - ENVIRONMENT=production
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_USER=factoryops
+      - MYSQL_DATABASE=factoryops
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - INFLUXDB_URL=http://influxdb:8086
+      - INFLUXDB_ORG=factoryops
+      - INFLUXDB_BUCKET=factoryops
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_BUCKET=factoryops
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USER=factoryops
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      influxdb:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: always
+    networks:
+      - factoryops-net
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '1.0'
+          memory: 1G
+
+  frontend:
+    image: ghcr.io/${GITHUB_REPOSITORY}/frontend:${IMAGE_TAG:-latest}
+    container_name: factoryops-frontend
+    environment:
+      - VITE_API_URL=${APP_URL}/api
+    restart: always
+    networks:
+      - factoryops-net
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  mysql:
+    image: mysql:8.0
+    container_name: factoryops-mysql
+    secrets:
+      - mysql_password
+      - mysql_root_password
+    environment:
+      - MYSQL_ROOT_PASSWORD_FILE=/run/secrets/mysql_root_password
+      - MYSQL_DATABASE=factoryops
+      - MYSQL_USER=factoryops
+      - MYSQL_PASSWORD_FILE=/run/secrets/mysql_password
+    volumes:
+      - mysql-data:/var/lib/mysql
+    restart: always
+    networks:
+      - factoryops-net
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '1.0'
+          memory: 1G
+
+  redis:
+    image: redis:7-alpine
+    container_name: factoryops-redis
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-data:/data
+    restart: always
+    networks:
+      - factoryops-net
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  influxdb:
+    image: influxdb:2.7-alpine
+    container_name: factoryops-influxdb
+    secrets:
+      - influxdb_admin_password
+      - influxdb_token
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=admin
+      - DOCKER_INFLUXDB_INIT_PASSWORD_FILE=/run/secrets/influxdb_admin_password
+      - DOCKER_INFLUXDB_INIT_ORG=factoryops
+      - DOCKER_INFLUXDB_INIT_BUCKET=factoryops
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN_FILE=/run/secrets/influxdb_token
+    volumes:
+      - influxdb-data:/var/lib/influxdb2
+      - influxdb-config:/etc/influxdb2
+    restart: always
+    networks:
+      - factoryops-net
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+    healthcheck:
+      test: ["CMD", "influx", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '1.0'
+          memory: 2G
+
+  rabbitmq:
+    image: rabbitmq:3.12-management-alpine
+    container_name: factoryops-rabbitmq
+    secrets:
+      - rabbitmq_password
+    environment:
+      - RABBITMQ_DEFAULT_USER=factoryops
+      - RABBITMQ_DEFAULT_PASS_FILE=/run/secrets/rabbitmq_password
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    restart: always
+    networks:
+      - factoryops-net
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  minio:
+    image: minio/minio:latest
+    container_name: factoryops-minio
+    command: server /data --console-address ":9001"
+    secrets:
+      - minio_secret_key
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ACCESS_KEY}
+      - MINIO_ROOT_PASSWORD_FILE=/run/secrets/minio_secret_key
+    volumes:
+      - minio-data:/data
+    restart: always
+    networks:
+      - factoryops-net
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+
+  mqtt:
+    image: eclipse-mosquitto:2.0
+    container_name: factoryops-mqtt
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./mosquitto/password_file:/mosquitto/config/password_file:ro
+      - mqtt-data:/mosquitto/data
+      - mqtt-logs:/mosquitto/log
+    restart: always
+    networks:
+      - factoryops-net
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+secrets:
+  mysql_password:
+    external: true
+  mysql_root_password:
+    external: true
+  jwt_secret:
+    external: true
+  influxdb_token:
+    external: true
+  influxdb_admin_password:
+    external: true
+  rabbitmq_password:
+    external: true
+  minio_secret_key:
+    external: true
+
+volumes:
+  mysql-data:
+  redis-data:
+  influxdb-data:
+  influxdb-config:
+  rabbitmq-data:
+  minio-data:
+  mqtt-data:
+  mqtt-logs:
+
+networks:
+  factoryops-net:
+    driver: bridge
